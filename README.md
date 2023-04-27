@@ -39,6 +39,7 @@ optional arguments:
 Examples to run:
 
 ```
+python3 colabfold_analysis.py my_exciting_colabfold_output_folder
 
 python3 colabfold_analysis.py my_exciting_colabfold_output_folder --pae 12 --plddt 50 --pae-mode avg
 
