@@ -239,7 +239,7 @@ def get_lines_from_pdb_file(pdb_filename:str) -> list:
     pdb_file.close()
     return pdb_data.splitlines()
 
-def get_contacts_from_structure(pdb_filename:str, max_distance:float = 8, min_plddt:float = 70) -> dict:
+def get_contacts_from_structure(pdb_filename:str, max_distance:float = 8, min_plddt:float = 70, valid_aas:str='', within_chain = False) -> dict:
     """
         Returns a dict that contains all amino acids between different chains that are in contact and meet the specified criteria
 
@@ -279,19 +279,26 @@ def get_contacts_from_structure(pdb_filename:str, max_distance:float = 8, min_pl
             #No need to examine this atom since it does not meet the pLDDT cutoff, skip it
             continue
 
+        aa_type = aa_3c_to_1c[atom_line[17:20]]
+        if len(valid_aas) > 0:
+            if aa_type not in valid_aas:
+                #No need to examine this residue, its not one of the types we're looking for, skip it
+                continue
+
         atom = atom_from_pdb_line(atom_line)
         if is_nitrogen:
+
             #Every amino acid residue starts PDB entry with exactly one "N" atom, so when we see one we know we have just encountered a new residue
             chain = atom_line[20:22].strip()
             if chain != last_chain:
-                #Are we in a new chain? If so, increment chain index and create new list in "residuesa"
+                #Are we in a new chain? If so, increment chain index and create new list in "residues"
                 chain_index += 1
                 last_chain = chain
                 N_coords.append([])
                 residues.append([])
                 chains.append(chain)
 
-            residue = {"chain":chain, "atoms":[],'c_ix':int(atom_line[22:26]), "a_ix":abs_res_index, "type":aa_3c_to_1c[atom_line[17:20]], "plddt":bfactor}
+            residue = {"chain":chain, "atoms":[],'c_ix':int(atom_line[22:26]), "a_ix":abs_res_index, "type":aa_type, "plddt":bfactor}
             residues[chain_index].append(residue)
 
             #add nitrogen atom coordinates to coordinates list to allow for fast broad searching later
@@ -307,7 +314,9 @@ def get_contacts_from_structure(pdb_filename:str, max_distance:float = 8, min_pl
     for i in range(0, num_chains):
         chain_1_coords = N_coords[i]
         num_in_c1 = len(chain_1_coords)
-        for i2 in range(i + 1, num_chains):
+
+        i2_start = i if within_chain else i + 1
+        for i2 in range(i2_start, num_chains):
 
             chain_2_coords = N_coords[i2]
             num_in_c2 = len(chain_2_coords)
@@ -337,7 +346,7 @@ def get_contacts_from_structure(pdb_filename:str, max_distance:float = 8, min_pl
     return contacts
 
 
-def get_contacts(pdb_filename:str, pae_filename:str, max_distance:float, min_plddt:float, max_pae:float, pae_mode:str) -> dict:
+def get_contacts(pdb_filename:str, pae_filename:str, max_distance:float, min_plddt:float, max_pae:float, pae_mode:str, valid_aas:str = '') -> dict:
     """
         Get contacts from a protein structure in PDB format that meet the specified distance and confidence criteria.
 
@@ -349,43 +358,61 @@ def get_contacts(pdb_filename:str, pae_filename:str, max_distance:float, min_pld
         :param pae_mode (str): The method to use for calculating predicted atomic error (pAE). Possible values are "avg" or "min".
     """
 
+    # if we pass in a 0 length string we know we are meant to ignore the PAE files
+    ignore_pae = len(pae_filename) == 0
+
     model_num = get_af_model_num(pdb_filename)
     if model_num < 1 or model_num > 5:
         raise ValueError('There are only 5 Alphafold models, numbered 1 to 5. All PDB files and PAE files must have a valid model number to be analyzed.')
 
-    if model_num != get_af_model_num(pae_filename):
+    if ignore_pae == False and model_num != get_af_model_num(pae_filename):
         raise ValueError('File mismatch, can only compare PDB and PAE files from same complex and the same AF2 model')
 
     #first determine which residues are in physical contact(distance) and have a minimum pLDDT score (bfactor column)
-    contacts = get_contacts_from_structure(pdb_filename, max_distance, min_plddt)
+    contacts = get_contacts_from_structure(pdb_filename, max_distance, min_plddt, valid_aas)
     if len(contacts) < 1:
         return {}
     
-    #extract PAE data as a list of strings("PAE values") from the PAE file which is a linearized form of a N by N matrix where N is the total number of residues inb the predicted structure 
-    pae_data = get_pae_values_from_json_file(pae_filename)
-
-    #need this value for converting between amino acid index and the pAE array index
-    total_aa_length = int(math.sqrt(len(pae_data)))
-
     filtered_contacts = {}
+    
+    pae_data = None
+    total_aa_length = 0
+
+    if not ignore_pae:
+        #extract PAE data as a list of strings("PAE values") from the PAE file which is a linearized form of a N by N matrix where N is the total number of residues inb the predicted structure 
+        pae_data = get_pae_values_from_json_file(pae_filename)
+
+        #need this value for converting between amino acid index and the pAE array index
+        total_aa_length = int(math.sqrt(len(pae_data)))
 
     for c in contacts:
 
         aas = [c['aa1'], c['aa2']]
         aa_indices = [aas[0]['a_ix'],aas[1]['a_ix']]
 
-        #convert the absolute amino acid index into the linear index where the 2 PAE values for each pair are (x, y) and (y, x)
-        pae_index_1 = total_aa_length*(aa_indices[0] - 1) + aa_indices[1] - 1
-        pae_index_2 = total_aa_length*(aa_indices[1] - 1) + aa_indices[0] - 1
+        pae_values = [0, 0]
+        pae_value = 0
 
-        #pae data contains string values, have to convert them to floats before using them for math calculations
-        pae_values = [float(pae_data[pae_index_1]), float(pae_data[pae_index_2])]
+        if not ignore_pae:
+            #convert the absolute amino acid index into the linear index where the 2 PAE values for each pair are (x, y) and (y, x)
+            pae_index_1 = total_aa_length*(aa_indices[0] - 1) + aa_indices[1] - 1
+            pae_index_2 = total_aa_length*(aa_indices[1] - 1) + aa_indices[0] - 1
 
-        pae_value = 0.5*(pae_values[0] + pae_values[1]) if pae_mode == 'avg' else min(pae_values[0],pae_values[1])
-        
-        if(pae_value > max_pae):
-            #The pAE value of this residue pair is too high, skip it
-            continue
+            if pae_index_1 >= len(pae_data) or pae_index_2 >= len(pae_data):
+                raise ValueError(f"Something went wrong and we are attempting to access non-existant PAE values for PDB file: {pdb_filename} from PAE file: {pae_filename}")
+
+            #pae data contains string values, have to convert them to floats before using them for math calculations
+            pae_values = [float(pae_data[pae_index_1]), float(pae_data[pae_index_2])]
+            pae_value = 0.5*(pae_values[0] + pae_values[1]) if pae_mode == 'avg' else min(pae_values[0],pae_values[1])
+            
+            if(pae_value > max_pae):
+                #The pAE value of this residue pair is too high, skip it
+                continue
+
+        if len(valid_aas) > 0:
+            if aas[0]['type'] not in valid_aas or aas[1]['type'] not in valid_aas:
+                 #This contact pair has amino acids not in the specified set, skip
+                continue
 
         #This contact meets all the specified criteria, add it to the dict
 
@@ -393,6 +420,7 @@ def get_contacts(pdb_filename:str, pae_filename:str, max_distance:float, min_pld
         chain_contact_id = aas[0]['chain'] + ":" + aas[1]['chain']
         if chain_contact_id not in filtered_contacts:
             filtered_contacts[chain_contact_id] = {}
+
 
         #Use the absolute indices of the two residues in the PDB file as the unique key for this pair/contact
         contact_id = str(aa_indices[0]) + '&' + str(aa_indices[1])
@@ -521,7 +549,7 @@ def summarize_interface_statistics(interfaces:dict) -> dict:
     return summary_stats
 
 
-def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, complexes:list, max_distance:float, min_plddt:float, max_pae:float, pae_mode:str):
+def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, complexes:list, max_distance:float, min_plddt:float, max_pae:float, pae_mode:str, valid_aas:str = '', ignore_pae:bool = False):
     """
         Analyze protein complexes in PDB format.
 
@@ -533,6 +561,8 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
         :param min_plddt (float): The minimum PLDDT score required for a residue to be considered "well-modeled".
         :param max_pae (float): The maximum predicted alignment error allowed for a residue to be considered "well-modeled".
         :param pae_mode (str): The method to use for calculating predicted alignment error (PAE). Possible values are "min" or "avg".
+        :param valid_aas (str): A string representing the set of amino acids have both residues in a pair have to belong to in order for that pair to be a contact. 
+        :param ignore_pae (bool): A boolean that allows to analyze complexes purely based on PDB files and ignores any PAE analysis. 
     """
 
     summary_stats = {}
@@ -545,18 +575,23 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
         print(f"Analyzing {index + 1} / {len(complexes)}: {cname}")
 
         pdb_filepaths = get_filepaths_for_complex(input_folder, cname, '*.pdb*')
+
+        pae_filepaths = []
+        if ignore_pae == False:
+            #get pAE files ending in .json or .json followed by two letters as would be the case of compressed gzipped files
+            pae_filepaths = get_filepaths_for_complex(input_folder, cname, '*score*.json') + get_filepaths_for_complex(input_folder, cname, "*score*.json.??")
         
-        #get pAE files ending in .json or .json followed by two letters as would be the case of compressed gzipped files
-        pae_filepaths = get_filepaths_for_complex(input_folder, cname, '*score*.json') + get_filepaths_for_complex(input_folder, cname, "*score*.json.??")
-       
-        if len(pdb_filepaths) != len(pae_filepaths):
-            print(f"ERROR: Number of PDB files ({len(pdb_filepaths)}) does not match number of PAE files ({len(pae_filepaths)})")
-            print("SKIPPING: " + cname)
-            continue
+            if len(pdb_filepaths) != len(pae_filepaths):
+                print(f"ERROR: Number of PDB files ({len(pdb_filepaths)}) does not match number of PAE files ({len(pae_filepaths)})")
+                print("SKIPPING: " + cname)
+                continue
 
         #sort the files by model number so that they are aligned for analysis ie PDB model 1 = PAE model 1
         pdb_filepaths.sort(key=get_af_model_num)
-        pae_filepaths.sort(key=get_af_model_num)
+        if ignore_pae == False:
+            pae_filepaths.sort(key=get_af_model_num)
+        else:
+            pae_filepaths = ['']*len(pdb_filepaths)
 
         interface_contacts = {}
 
@@ -566,7 +601,7 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
         for pdb_filename, pae_filename in zip(pdb_filepaths, pae_filepaths):
             
             model_num = get_af_model_num(pdb_filename)
-            contacts = get_contacts(pdb_filename, pae_filename, max_distance, min_plddt, max_pae, pae_mode)
+            contacts = get_contacts(pdb_filename, pae_filename, max_distance, min_plddt, max_pae, pae_mode, valid_aas)
             interface_contacts[model_num] = contacts
 
             for interchain_str, interchain_interfaces in contacts.items():
@@ -583,6 +618,7 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
                         "aa2_type":c['types'][1],
                         "aa2_plddt":round(c['plddts'][1]),
                         "pae":c['pae'],
+                        "min_distance":c['distance'],
                     })
 
             if_stats = calculate_interface_statistics(contacts)
@@ -654,7 +690,7 @@ def analysis_thread_did_finish(arg1):
    return
 
 
-def analyze_folder(data_folder:str, max_distance:float, plddt_cutoff:float, pae_cutoff:float, pae_mode:str) -> str:
+def analyze_folder(data_folder:str, max_distance:float, plddt_cutoff:float, pae_cutoff:float, pae_mode:str, valid_aas:str='', ignore_pae:bool=False) -> str:
     """
         Analyze a folder containing protein structures in PDB format.
 
@@ -663,8 +699,11 @@ def analyze_folder(data_folder:str, max_distance:float, plddt_cutoff:float, pae_
         :param plddt_cutoff (float): The minimum pLDDT score required for a residue to be considered "well-modeled".
         :param pae_cutoff (float): The maximum predicted atomic error allowed for a residue to be considered "well-modeled".
         :param pae_mode (str): The method to use for calculating predicted atomic error (PAE). Possible values are "min" or "avg".
+        :param valid_aas (str): A string representing the set of amino acids have both residues in a pair have to belong to in order for that pair to be a contact. 
+        :param ignore_pae (bool): A boolean that allows to analyze complexes purely based on PDB files and ignores any PAE analysis. 
     """
 
+    data_folder = data_folder.rstrip('/')
     complex_names = get_finished_complexes(data_folder)
     if len(complex_names) < 1:
         print("ERROR: No complexes to analyze found. Please ensure all finished complexes/predictions you would like analyzed have a .done.txt file")
@@ -695,7 +734,7 @@ def analyze_folder(data_folder:str, max_distance:float, plddt_cutoff:float, pae_
     for cpu_index in range(0, num_cpus_to_use):
         #create a new thread to analyze the complexes (1 thread per CPU)
         traces.append(pool.apply_async(analyze_complexes, 
-                                       args=(cpu_index, data_folder, output_folder, complex_name_lists[cpu_index], max_distance, plddt_cutoff, pae_cutoff, pae_mode), 
+                                       args=(cpu_index, data_folder, output_folder, complex_name_lists[cpu_index], max_distance, plddt_cutoff, pae_cutoff, pae_mode, valid_aas, ignore_pae), 
                                        callback=analysis_thread_did_finish))
 
     for t in traces:
@@ -753,15 +792,25 @@ if __name__ == '__main__':
         help="Minimum pLDDT values required by both residues in a contact in order for that contact to be included in the analysis. Values range from 0 (worst) to 100 (best). Default is 50",
         type=float,)
     parser.add_argument(
+        '--aas', 
+        default='',
+        help="A string representing what amino acids contacts to look/filter for. Allows you to limit what contacts to include in the analysis. By default is blank meaning all amino acids. A value of K would be for any lysine lysine pairs. KR would be RR, KR, RK, or RR pairs, etc",
+        type=str)
+    parser.add_argument(
         '--combine-all', 
         help="Combine the analysis from multiple folders specified by the input argument",
         action='store_true')
+    parser.add_argument(
+        '--ignore-pae', 
+        help="Ignore PAE values and just analyze the PDB files. Overides any other PAE settings.",
+        action='store_true')
+
     args = parser.parse_args()
 
     if (args.distance < 1):
         sys.exit("The distance cutoff has been set too low. Please use a number greater than 1 Angstrom")
 
-    if (args.pae < 1):
+    if (not args.ignore_pae and args.pae < 1):
         sys.exit("The pAE cutoff has been set too low. Please use a number greater than 1 Angstrom")
 
     if (args.plddt < 1):
@@ -772,6 +821,9 @@ if __name__ == '__main__':
 
     if len(args.input) < 1:
         sys.exit("No folders to analyze were provided");
+    
+    #remove any invalid amino acid chracters and ensure they are all converted to uppercase
+    args.aas = re.sub(r'[^ACDEFGHIKLMNPQRSTVWY]', '', args.aas.upper())
 
     #loop through all the folders specified in the input
     output_folders = []
@@ -782,7 +834,7 @@ if __name__ == '__main__':
             continue
 
         print(f"Starting to analyze folder ({folder})")
-        output_folders.append(analyze_folder(folder, args.distance, args.plddt, args.pae, args.pae_mode))
+        output_folders.append(analyze_folder(folder, args.distance, args.plddt, args.pae, args.pae_mode, args.aas, args.ignore_pae))
         print(f"Finished analyzing folder ({folder})")
         print(" "*80)
         print("*"*80)
@@ -791,13 +843,12 @@ if __name__ == '__main__':
 
     if len(args.input) > 1 and args.combine_all:
         
-        
         combined_output_folder = 'af_multimer_contact_analysis'
         index = 1
         while os.path.isdir(combined_output_folder):
             #if we find existing folders with the output folder name we will iterate over index until we find an unused folder name
             combined_output_folder = "af_multimer_contact_analysis_" + str(index)
-        index += 1
+            index += 1
         
         os.mkdir(combined_output_folder)
 
