@@ -33,11 +33,19 @@ optional arguments:
                         that contact to be included in the analysis. Values range from 0 (worst)
                         to 100 (best). Default is 50.
                         
+  --aas AAS             A string representing what amino acids contacts to look/filter for. Allows you
+                        to limit what contacts to include in the analysis. By default is blank meaning
+                        all amino acids. A value of K would be for any lysine lysine pairs. KR would be
+                        RR, KR, RK, or RR pairs, etc
+                        
   --combine-all         Combine the analysis from multiple folders specified by the input argument
+  
+  --ignore-pae          Ignore PAE values and just analyze the PDB files. Overides any other PAE
+                        settings.
 ```
 
 
-Examples to run:
+Examples:
 
 ```
 python3 colabfold_analysis.py my_exciting_colabfold_output_folder
@@ -51,6 +59,7 @@ python3 colabfold_analysis.py folder_? --distance 10 --plddt 60 --pae-mode min -
 ```
 
 ## Example folder to be analyzed
+Note that presence of a .done.txt marker file produced by Colabfold. Only complexes with a marker file will be analyzed.
 ```
 colabfold_output/
 ├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN.done.txt
@@ -102,9 +111,8 @@ Each row is 1 prediction (structure/JSON score file)
 A comprehensive table of all residue contact pairs between all chains that met the contact criteria specified during the run. 
 Each row is 1 pair of interacting residues in different chains.
 
-| complex_name        | model_num              | aa1_chain              | aa1_index                           | aa1_type                    | aa1_plddt      | aa2_chain              | aa2_index                           | aa2_type                    | aa2_plddt     | pae                                                                        |
-|---------------------|------------------------|------------------------|-------------------------------------|-----------------------------|----------------|------------------------|-------------------------------------|-----------------------------|---------------|----------------------------------------------------------------------------|
-| Name of the complex | AlphaFold model number | chain residue 1 is in  | Index of residue 1 within its chain | 1 letter code for residue 1 | pLDDT for aa1  | chain residue 2 is in  | Index of residue 2 within its chain | 1 letter code for residue 2 | pLDDT for aa2 | Combined pAE value for residue pair calculated using specified "pae_mode"  |
-
+| complex_name        | model_num              | aa1_chain             | aa1_index                           | aa2_chain             | aa1_plddt     | aa2_index                           | aa2_type                    | aa2_plddt     | aa1_type                    | pae                                                                       | min_distance                                          |
+|---------------------|------------------------|-----------------------|-------------------------------------|-----------------------|---------------|-------------------------------------|-----------------------------|---------------|-----------------------------|---------------------------------------------------------------------------|-------------------------------------------------------|
+| Name of the complex | AlphaFold model number | chain residue 1 is in | Index of residue 1 within its chain | chain residue 2 is in | pLDDT for aa1 | Index of residue 2 within its chain | 1 letter code for residue 2 | pLDDT for aa2 | 1 letter code for residue 1 | Combined pAE value for residue pair calculated using specified "pae_mode" | Minimum distance in angstroms between the 2 residues. |
 
 
