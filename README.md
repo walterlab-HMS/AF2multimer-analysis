@@ -50,6 +50,30 @@ python3 colabfold_analysis.py folder_? --distance 10 --plddt 60 --pae-mode min -
 
 ```
 
+## Example folder to be analyzed
+```
+colabfold_output/
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN.done.txt
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa.a3m
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa.done.txt
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_coverage.png
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_scores_rank_001_alphafold2_multimer_v3_model_5_seed_000.json
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_scores_rank_002_alphafold2_multimer_v3_model_4_seed_000.json
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_scores_rank_003_alphafold2_multimer_v3_model_2_seed_000.json
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_scores_rank_004_alphafold2_multimer_v3_model_1_seed_000.json
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_scores_rank_005_alphafold2_multimer_v3_model_3_seed_000.json
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_template_domain_names.json
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_unrelaxed_rank_001_alphafold2_multimer_v3_model_5_seed_000.pdb
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_unrelaxed_rank_002_alphafold2_multimer_v3_model_4_seed_000.pdb
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_unrelaxed_rank_003_alphafold2_multimer_v3_model_2_seed_000.pdb
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_unrelaxed_rank_004_alphafold2_multimer_v3_model_1_seed_000.pdb
+├── MCM2_HUMAN__MCM5_HUMAN-CDC45_HUMAN__2204aa_unrelaxed_rank_005_alphafold2_multimer_v3_model_3_seed_000.pdb
+├── cite.bibtex
+├── config.json
+└── log.txt
+```
+
 ## Outputs
 
 Running this script will produce one or more folders each containing 3 comma seperated value (CSV) files that you can then open with a standard text editor or any spreadhseet program. 
