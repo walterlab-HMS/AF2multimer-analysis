@@ -113,11 +113,11 @@ def get_finished_complexes(path:str, search_str:str = '.done.txt') -> list:
 
 def get_filepaths_for_complex(path:str, complex_name:str, pattern:str = '*') -> list:
     """
-        Returns a list of strings representing the paths of files that match the specified GLOB pattern
+        Helper methdof for returning a list of filepaths (strs) that match the specified GLOB pattern
 
         :param path: string representing the path/folder to search for complexes
         :param complex_name: string that represents the name of a complex
-        :param pattern: string representing the pattern to use when searching for the completed complexes. By default this is *.done.txt because Colabfold outputs 1 such file per complex.
+        :param pattern: string representing the pattern to use when searching for files belonging to complex. Ex: *.pdb, *.json, etc
     """
 
     glob_str = os.path.join(path, complex_name + pattern)
@@ -160,7 +160,7 @@ def get_pae_values_from_json_file(json_filename) -> list:
 
 def get_pdockq_val(num_contacts:int, avg_plddt:float) -> float:
     """
-        Returns the predicted DOCKQ value a paramter ranging from 0 to 1 that estimates how well a predicted interfaces matches a true interface
+        Returns the predicted DOCKQ value, a parameter ranging from 0 to 1 that estimates how well a predicted interfaces matches a true interface
 
         :param num_contacts: the number of contacts(unique residue pairs) in the interface
         :param avg_plddt: the average pLDDT value over the interface
@@ -727,32 +727,32 @@ if __name__ == '__main__':
     parser.add_argument(
         "input",
         default="",
-        help="One or more folders with PDB files and pAE json files output by Colabfold. Note the '.done.txt' files are used to find the names of complexes to analyze.",
+        help="One or more folders with PDB files and pAE JSON files output by Colabfold. Note that '.done.txt' marker files produced by Colabfold are used to find the names of complexes to analyze.",
         nargs='*',)
     parser.add_argument(
         "--distance",
         default=8,
-        help="Maximum distance in Angstroms for a contact to be included in the final output",
+        help="Maximum distance in Angstroms that any two atoms in two residues in different chains can have for them be considered in contact for the analysis. Default is 8 Angstroms.",
         type=float,)
     parser.add_argument(
         "--pae",
         default=15,
-        help="Maximum PAE value allowed for a contact to be included in the final output",
+        help="Maximum predicted Angstrom Error (pAE) value in Angstroms allowed for a contact(pair of residues) to be considered in the analysis. Valid values range from 0 (best) to 30 (worst). Default is 15.",
         type=float,)
     parser.add_argument(
         "--pae-mode",
         default='min',
-        help="How to combine the dual PAE values (x, y) and (y, x) single PAE value for a residue pair (x, y)",
+        help=" How to combine the dual pAE values (x, y) and (y, x) outout for each residue pair in the pAE JSON files into a single pAE value for a residue pair (x, y).  Default is 'min'.",
         type=str, 
         choices=['min', 'avg'])
     parser.add_argument(
         "--plddt",
         default=50,
-        help="Minimum pLDDT values required by both residues in a contact in order for that contact to be included in the final output",
+        help="Minimum pLDDT values required by both residues in a contact in order for that contact to be included in the analysis. Values range from 0 (worst) to 100 (best). Default is 50",
         type=float,)
     parser.add_argument(
         '--combine-all', 
-        help="Combine the analysis of multiple folders",
+        help="Combine the analysis from multiple folders specified by the input argument",
         action='store_true')
     args = parser.parse_args()
 
