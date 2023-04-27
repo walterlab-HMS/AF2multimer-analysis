@@ -35,14 +35,14 @@ optional arguments:
 ```
 
 
-Example(s) to run:
+Examples to run:
 
 ```
 
-python3 colabfold_analysis.py my_exciting_colabfold_output_folder --pae 12 -plddt 50 --pae-mode avg
+python3 colabfold_analysis.py my_exciting_colabfold_output_folder --pae 12 --plddt 50 --pae-mode avg
 
-python3 colabfold_analysis.py folder1 folder2 folder3 --pae 12 -plddt 50 --pae-mode avg --combine-all
+python3 colabfold_analysis.py folder1 folder2 folder3 --pae 12 --plddt 50 --pae-mode avg --combine-all
 
-python3 colabfold_analysis.py folder_? --distance 10 -plddt 60 --pae-mode min --combine-all
+python3 colabfold_analysis.py folder_? --distance 10 --plddt 60 --pae-mode min --combine-all
 
 ```
