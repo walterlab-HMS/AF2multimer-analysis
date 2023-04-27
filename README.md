@@ -17,9 +17,9 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   
-  --distance DISTANCE   Maximum distance in Angstroms that any two atoms in two different residues can have for them be considered in contact for the                               analyis. Default is 8 Angstroms. 
+  --distance DISTANCE   Maximum distance in Angstroms that any two atoms in two different residues can have for them be considered in contact for the analyis. Default is 8 Angstroms. 
                         
-  --pae PAE             Maximum predicted Angstrom Error (pAE) value in Angstroms allowed for a contact to be included in the final output. Valid values                           range from 0 (best) to 30 (worst). Default is 15.
+  --pae PAE             Maximum predicted Angstrom Error (pAE) value in Angstroms allowed for a contact to be included in the final output. Valid values range from 0 (best) to 30 (worst). Default is 15.
   
   --pae-mode {min,avg}  How to combine the dual PAE values (x, y) and (y, x) into a single PAE value for
                         a residue pair (x, y).  Default is "min".
