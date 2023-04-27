@@ -9,8 +9,8 @@ usage: colabfold_analysis.py [-h] [--distance DISTANCE] [--pae PAE] [--pae-mode 
 
 positional arguments:
   input                 One or more folders with PDB files and pAE json files output by Colabfold.
-                        Note the '.done.txt' files are used to find the names of complexes to
-                        analyze.
+                        Note that '.done.txt' marker files produced by Colabfold are used to find
+                        the names of complexes to analyze.
 
 optional arguments:
   -h, --help            show this help message and exit
