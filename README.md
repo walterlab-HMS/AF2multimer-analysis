@@ -2,7 +2,7 @@
 multimer-analysis
 
 
-This python script allows one to find contacts between residues in multimeric structure files produced as output from Alphafold2 via the Colabfold pipeline. 
+This python script allows one to find contacts between residues in multimeric structure files produced as output from Alphafold2 via the Colabfold pipeline. <https://github.com/sokrypton/ColabFold/tree/main/colabfold>
 
 ```
 usage: colabfold_analysis.py [-h] [--distance DISTANCE] [--pae PAE] [--pae-mode {min,avg}]
