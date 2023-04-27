@@ -44,6 +44,8 @@ def join_csv_files(files:list, output_name:str, sort_col:str = None, sort_ascend
 
         :param files (list): A list of file paths to CSV files to be joined.
         :param output_name (str): The name of the output file.
+        :param sort_col (str, optional): The column header of the final CSV column by which to sort the rows by.
+        :param sort_ascending (bool, optional): The sort direction to use when sorting the final output CSV.
         :param headers (list, optional): A list of column names for the output file. If not provided, the column names from the first input file are used.
     """
     if(len(files) < 1):
@@ -788,8 +790,15 @@ if __name__ == '__main__':
         print(" "*80)
 
     if len(args.input) > 1 and args.combine_all:
-
-        combined_output_folder = 'combined_analysis_output'
+        
+        
+        combined_output_folder = 'af_multimer_contact_analysis'
+        index = 1
+        while os.path.isdir(combined_output_folder):
+            #if we find existing folders with the output folder name we will iterate over index until we find an unused folder name
+            combined_output_folder = "af_multimer_contact_analysis_" + str(index)
+        index += 1
+        
         os.mkdir(combined_output_folder)
 
         for name in ['summary', 'interfaces', 'contacts']:
