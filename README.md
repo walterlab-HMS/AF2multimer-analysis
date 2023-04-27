@@ -17,15 +17,19 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   
-  --distance DISTANCE   Maximum distance in Angstroms that any two atoms in two different residues can have for them be considered in contact for the analyis. Default is 8 Angstroms. 
+  --distance DISTANCE   Maximum distance in Angstroms that any two atoms in two residues in
+                        different chains can have for them be considered in contact for the
+                        analyis. Default is 8 Angstroms.
                         
-  --pae PAE             Maximum predicted Angstrom Error (pAE) value in Angstroms allowed for a contact to be included in the final output. Valid values range from 0 (best) to 30 (worst). Default is 15.
-  
-  --pae-mode {min,avg}  How to combine the dual PAE values (x, y) and (y, x) into a single PAE value for
-                        a residue pair (x, y).  Default is "min".
+  --pae PAE             Maximum predicted Angstrom Error (pAE) value in Angstroms allowed for a
+                        contact(pair of residues) to be considered in the analysis. Valid values
+                        range from 0 (best) to 30 (worst). Default is 15.
+                        
+  --pae-mode {min,avg}  How to combine the dual PAE values (x, y) and (y, x) into a single PAE
+                        value for a residue pair (x, y). Default is 'min'.
                         
   --plddt PLDDT         Minimum pLDDT values required by both residues in a contact in order for
-                        that contact to be included in the final output. Valid values range from low confidence 0 to high confidence 100. Default is 70.
+                        that contact to be included in the analysis.
                         
   --combine-all         Combine the analysis from multiple folders specified by the input argument
 ```
