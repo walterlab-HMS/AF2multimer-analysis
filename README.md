@@ -19,7 +19,7 @@ optional arguments:
   
   --distance DISTANCE   Maximum distance in Angstroms that any two atoms in two residues in
                         different chains can have for them be considered in contact for the
-                        analyis. Default is 8 Angstroms.
+                        analysis. Default is 8 Angstroms.
                         
   --pae PAE             Maximum predicted Angstrom Error (pAE) value in Angstroms allowed for a
                         contact(pair of residues) to be considered in the analysis. Valid values
