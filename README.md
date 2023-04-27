@@ -1,6 +1,8 @@
 # AF2multimer-analysis
 
+
 This python script allows one to find contacts between residues in multimeric structure files produced as output from Alphafold2 via the Colabfold pipeline <https://github.com/sokrypton/ColabFold/tree/main/colabfold>. It integrates both physical proximity and Alphafold conficence metrics such as the predicted Alignment Error(pAE) and the predicted Local Distance Difference Test (pLDDT).
+
 
 ```
 usage: colabfold_analysis.py [-h] [--distance DISTANCE] [--pae PAE] [--pae-mode {min,avg}]
@@ -30,4 +32,17 @@ optional arguments:
                         that contact to be included in the analysis.
                         
   --combine-all         Combine the analysis from multiple folders specified by the input argument
+```
+
+
+Example(s) to run:
+
+```
+
+python3 colabfold_analysis.py my_exciting_colabfold_output_folder --pae 12 -plddt 50 --pae-mode avg
+
+python3 colabfold_analysis.py folder1 folder2 folder3 --pae 12 -plddt 50 --pae-mode avg --combine-all
+
+python3 colabfold_analysis.py folder_? --distance 10 -plddt 60 --pae-mode min --combine-all
+
 ```
