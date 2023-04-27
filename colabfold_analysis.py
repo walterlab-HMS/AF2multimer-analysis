@@ -574,11 +574,16 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
 
         print(f"Analyzing {index + 1} / {len(complexes)}: {cname}")
 
-        pdb_filepaths = get_filepaths_for_complex(input_folder, cname, '*.pdb*')
+        #get PDB files ending in .pdb or .pdb followed by two letters as would be the case for compressed gzipped files
+        pdb_filepaths = get_filepaths_for_complex(input_folder, cname, '*.pdb') + get_filepaths_for_complex(input_folder, cname, "*.pdb.??")
+        if len(pdb_filepaths) < 1:
+            print(f"ERROR: No PDB files found for {cname}")
+            print("SKIPPING: " + cname)
+            continue 
 
         pae_filepaths = []
         if ignore_pae == False:
-            #get pAE files ending in .json or .json followed by two letters as would be the case of compressed gzipped files
+            #get pAE files ending in .json or .json followed by two letters as would be the case for compressed gzipped files
             pae_filepaths = get_filepaths_for_complex(input_folder, cname, '*score*.json') + get_filepaths_for_complex(input_folder, cname, "*score*.json.??")
         
             if len(pdb_filepaths) != len(pae_filepaths):
@@ -591,7 +596,8 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
         if ignore_pae == False:
             pae_filepaths.sort(key=get_af_model_num)
         else:
-            pae_filepaths = ['']*len(pdb_filepaths)
+            for f in pdb_filepaths:
+                pae_filepaths.append('')
 
         interface_contacts = {}
 
@@ -645,7 +651,6 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
                 "pae_max":round(if_stats['pae'][2]), 
                 "distance_avg":if_stats['distance_avg'],
             })
-
 
         stats = summarize_interface_statistics(interface_contacts)
         stats['best_model_num'] = best_interface_stats['model_num']
