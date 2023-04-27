@@ -4,6 +4,7 @@ multimer-analysis
 
 This python script allows one to find contacts between residues in multimeric structure files produced as output from Alphafold2 via the Colabfold pipeline. 
 
+```
 usage: colabfold_analysis.py [-h] [--distance DISTANCE] [--pae PAE] [--pae-mode {min,avg}]
                              [--plddt PLDDT] [--combine-all]
                              [input [input ...]]
@@ -23,3 +24,4 @@ optional arguments:
   --plddt PLDDT         Minimum pLDDT values required by both residues in a contact in order for
                         that contact to be included in the final output. Valid values from 0 to 100. Default is 70.
   --combine-all         Combine the analysis from multiple folders specified by the input argument
+```
