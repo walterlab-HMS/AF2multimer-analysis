@@ -51,11 +51,11 @@ def join_csv_files(files:list, output_name:str, sort_col:str = None, sort_ascend
     if(len(files) < 1):
         return
 
-    first_df = pd.read_csv(files[0])
-    combo_df = pd.DataFrame(columns = first_df.columns)
+    all_dfs = []
     for f in files:
-        df_temp = pd.read_csv(f)
-        combo_df = pd.concat([combo_df, df_temp], ignore_index=True)
+        all_dfs.append(pd.read_csv(f))
+
+    combo_df = pd.concat(all_dfs, ignore_index=True)
 
     if headers is not None:
         combo_df.columns = headers
@@ -562,7 +562,7 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
         :param max_pae (float): The maximum predicted alignment error allowed for a residue to be considered "well-modeled".
         :param pae_mode (str): The method to use for calculating predicted alignment error (PAE). Possible values are "min" or "avg".
         :param valid_aas (str): A string representing the set of amino acids have both residues in a pair have to belong to in order for that pair to be a contact. 
-        :param ignore_pae (bool): A boolean that allows to analyze complexes purely based on PDB files and ignores any PAE analysis. 
+        :param ignore_pae (bool): A boolean option allows to analyze complexes purely based on PDB files and ignores any PAE analysis. 
     """
 
     summary_stats = {}
@@ -695,11 +695,12 @@ def analysis_thread_did_finish(arg1):
    return
 
 
-def analyze_folder(data_folder:str, max_distance:float, plddt_cutoff:float, pae_cutoff:float, pae_mode:str, valid_aas:str='', ignore_pae:bool=False) -> str:
+def analyze_folder(data_folder:str, name_filter:str, max_distance:float, plddt_cutoff:float, pae_cutoff:float, pae_mode:str, valid_aas:str='', ignore_pae:bool=False) -> str:
     """
         Analyze a folder containing protein structures in PDB format.
 
         :param data_folder (str): The path to the folder containing PDB and pAE JSON files to be analyzed.
+        :param name_filter (str): String that can be used to filter complexes by name. Only complexes with names containing the filter string will be analyzed.
         :param max_distance (float): The maximum distance between two atoms for them to be considered in contact.
         :param plddt_cutoff (float): The minimum pLDDT score required for a residue to be considered "well-modeled".
         :param pae_cutoff (float): The maximum predicted atomic error allowed for a residue to be considered "well-modeled".
@@ -710,6 +711,10 @@ def analyze_folder(data_folder:str, max_distance:float, plddt_cutoff:float, pae_
 
     data_folder = data_folder.rstrip('/')
     complex_names = get_finished_complexes(data_folder)
+    if len(name_filter) > 0:
+        #keep only complex names that contain the name filter string
+        complex_names = list(filter(lambda x: name_filter in x, complex_names))
+
     if len(complex_names) < 1:
         print("ERROR: No complexes to analyze found. Please ensure all finished complexes/predictions you would like analyzed have a .done.txt file")
         return
@@ -760,6 +765,8 @@ def analyze_folder(data_folder:str, max_distance:float, plddt_cutoff:float, pae_
         if name == 'summary':
             #sort summary files by average num models descending as a default to bring top/most confident hits to the top
             sort_col = 'avg_n_models'
+
+        print(f"Combining all {name} files into one")
         join_csv_files(files, os.path.join(output_folder, name + '.csv'), sort_col=sort_col)
 
         #delete all the non-merged files produced by all the seperate CPU threads
@@ -802,6 +809,11 @@ if __name__ == '__main__':
         help="A string representing what amino acids contacts to look/filter for. Allows you to limit what contacts to include in the analysis. By default is blank meaning all amino acids. A value of K would be for any lysine lysine pairs. KR would be RR, KR, RK, or RR pairs, etc",
         type=str)
     parser.add_argument(
+        "--name-filter",
+        default='',
+        help="An optional string that allows one to only analyze complexes that contain that string in their name",
+        type=str,)
+    parser.add_argument(
         '--combine-all', 
         help="Combine the analysis from multiple folders specified by the input argument",
         action='store_true')
@@ -839,7 +851,7 @@ if __name__ == '__main__':
             continue
 
         print(f"Starting to analyze folder ({folder})")
-        output_folders.append(analyze_folder(folder, args.distance, args.plddt, args.pae, args.pae_mode, args.aas, args.ignore_pae))
+        output_folders.append(analyze_folder(folder, args.name_filter, args.distance, args.plddt, args.pae, args.pae_mode, args.aas, args.ignore_pae))
         print(f"Finished analyzing folder ({folder})")
         print(" "*80)
         print("*"*80)
