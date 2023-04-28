@@ -38,6 +38,10 @@ optional arguments:
                         all amino acids. A value of K would be for any lysine lysine pairs. KR would be
                         RR, KR, RK, or RR pairs, etc
                         
+  --name-filter NAME_FILTER
+                        An optional string that allows one to only analyze complexes that contain
+                        that string in their name
+                        
   --combine-all         Combine the analysis from multiple folders specified by the input argument
   
   --ignore-pae          Ignore PAE values and just analyze the PDB files. Overides any other PAE
