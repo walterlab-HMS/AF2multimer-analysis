@@ -717,7 +717,7 @@ def analyze_folder(data_folder:str, name_filter:str, max_distance:float, plddt_c
 
     if len(complex_names) < 1:
         print("ERROR: No complexes to analyze found. Please ensure all finished complexes/predictions you would like analyzed have a .done.txt file")
-        return
+        return None
     
     print(f"Found {len(complex_names)} complexes to analyze in folder: {data_folder}")
 
@@ -851,14 +851,16 @@ if __name__ == '__main__':
             continue
 
         print(f"Starting to analyze folder ({folder})")
-        output_folders.append(analyze_folder(folder, args.name_filter, args.distance, args.plddt, args.pae, args.pae_mode, args.aas, args.ignore_pae))
+        output_folder = analyze_folder(folder, args.name_filter, args.distance, args.plddt, args.pae, args.pae_mode, args.aas, args.ignore_pae)
+        if output_folder:
+            output_folders.append(output_folder)
         print(f"Finished analyzing folder ({folder})")
         print(" "*80)
         print("*"*80)
         print("*"*80)
         print(" "*80)
 
-    if len(args.input) > 1 and args.combine_all:
+    if len(output_folders) > 1 and args.combine_all:
         
         combined_output_folder = 'af_multimer_contact_analysis'
         index = 1
