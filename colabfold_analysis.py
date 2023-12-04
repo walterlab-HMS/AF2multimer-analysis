@@ -13,6 +13,7 @@ from statistics import mean
 import pandas as pd
 import sys
 import shutil
+from collections import defaultdict
 
 #dict for converting 3 letter amino acid code to 1 letter code
 aa_3c_to_1c = {
@@ -160,18 +161,6 @@ def get_pae_values_from_json_file(json_filename) -> list:
     
     return pae_data
 
-def get_pdockq_val(num_contacts:int, avg_plddt:float) -> float:
-    """
-        Returns the predicted DOCKQ value, a parameter ranging from 0 to 1 that estimates how well a predicted interfaces matches a true interface
-
-        :param num_contacts: the number of contacts(unique residue pairs) in the interface
-        :param avg_plddt: the average pLDDT value over the interface
-    """ 
-    #formula represents a sigmoid function that was empirically derived in the paper here: https://www.nature.com/articles/s41467-022-28865-w
-    #even though pDOCKQ range is supposed to bve from 0 to 1, this function maxes out at 0.742
-    return 0.724/(1 + 2.718**(-0.052*(avg_plddt*math.log(num_contacts, 10) - 152.611))) + 0.018
-
-
 def dist2(v1, v2) -> float:
     """
         Returns the square of the Euclian distance between 2 vectors carrying 3 values representing positions in the X,Y,Z axis
@@ -238,6 +227,98 @@ def get_lines_from_pdb_file(pdb_filename:str) -> list:
     pdb_data = pdb_file.read()
     pdb_file.close()
     return pdb_data.splitlines()
+
+
+#------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------
+#FROM ELOFSSON BLOCK (https://gitlab.com/ElofssonLab/FoldDock/-/blob/9a1a26ced4f6b8b9bc65a7ac76999118c292b80d/src/pdockq.py)
+
+def parse_atm_record(line:str)->dict:
+    """
+        Returns a dict of values associated with an ATOM entry in a PDB file. A helper function defined for get_pdockq_elofsson
+
+        :param line: A string representing a single line from an ATOM entry
+    """ 
+    record = defaultdict()
+    record['name'] = line[0:6].strip()
+    record['atm_no'] = int(line[6:11])
+    record['atm_name'] = line[12:16].strip()
+    record['atm_alt'] = line[17]
+    record['res_name'] = line[17:20].strip()
+    record['chain'] = line[21]
+    record['res_no'] = int(line[22:26])
+    record['insert'] = line[26].strip()
+    record['resid'] = line[22:29]
+    record['x'] = float(line[30:38])
+    record['y'] = float(line[38:46])
+    record['z'] = float(line[46:54])
+    record['occ'] = float(line[54:60])
+    record['B'] = float(line[60:66])
+
+    return record
+
+
+def get_pdockq_elofsson(pdb_filepath:str, chains:list=None) -> float:
+    """
+        Returns the pdockQ score as defined by https://www.nature.com/articles/s41467-022-28865-w
+
+        :param pdb_filepath: string representing the path of the PDB file to open and parse (can handle PDB files that have been compressed via GZIP or LZMA)
+        :param chain: an optional list of the chains to be used for calculating the pDOCKQ score
+    """ 
+    
+    chain_coords, chain_plddt = {}, {}
+    for line in get_lines_from_pdb_file(pdb_filepath):
+        if line[0:4] != 'ATOM':
+            continue
+        record = parse_atm_record(line)
+        if chains and record['chain'] not in chains:
+            continue
+        #Get CB - CA for GLY
+        if record['atm_name']=='CB' or (record['atm_name']=='CA' and record['res_name']=='GLY'):
+            if record['chain'] in [*chain_coords.keys()]:
+                chain_coords[record['chain']].append([record['x'],record['y'],record['z']])
+                chain_plddt[record['chain']].append(record['B'])
+            else:
+                chain_coords[record['chain']] = [[record['x'],record['y'],record['z']]]
+                chain_plddt[record['chain']] = [record['B']]
+
+
+    #Convert to arrays
+    for chain in chain_coords:
+        chain_coords[chain] = np.array(chain_coords[chain])
+        chain_plddt[chain] = np.array(chain_plddt[chain])
+
+    #Get coords and plddt per chain
+    ch1, ch2 = [*chain_coords.keys()]
+    coords1, coords2 = chain_coords[ch1], chain_coords[ch2]
+    plddt1, plddt2 = chain_plddt[ch1], chain_plddt[ch2]
+
+    #Calc 2-norm
+    mat = np.append(coords1, coords2,axis=0)
+    a_min_b = mat[:,np.newaxis,:] -mat[np.newaxis,:,:]
+    dists = np.sqrt(np.sum(a_min_b.T ** 2, axis=0)).T
+    l1 = len(coords1)
+    contact_dists = dists[:l1,l1:] #upper triangular --> first dim = chain 1
+    t = 8
+    contacts = np.argwhere(contact_dists<=t)
+    if contacts.shape[0]<1:
+        return 0
+
+    avg_if_plddt = np.average(np.concatenate([plddt1[np.unique(contacts[:,0])], plddt2[np.unique(contacts[:,1])]]))
+    n_if_contacts = contacts.shape[0]
+    x = avg_if_plddt*np.log10(n_if_contacts)
+
+    #formula represents a sigmoid function that was empirically derived in the paper here: https://www.nature.com/articles/s41467-022-28865-w
+    #even though pDOCKQ range is supposed to be from 0 to 1, this function maxes out at 0.742
+    return 0.724 / (1 + np.exp(-0.052*(x-152.611)))+0.018
+
+
+#------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------
+
+
 
 def get_contacts_from_structure(pdb_filename:str, max_distance:float = 8, min_plddt:float = 70, valid_aas:str='', within_chain = False) -> dict:
     """
@@ -478,19 +559,16 @@ def calculate_interface_statistics(contacts:dict) -> dict:
 
             num_contacts += 1
 
-    pdockq = 0
 
     if num_contacts > 0:
         plddt_avg = round(plddt_sum/num_contacts, 1)
         pae_avg = round(pae_sum/num_contacts, 1)
-        pdockq = round(get_pdockq_val(plddt_avg, num_contacts), 3)
         distance_avg = round(d_sum/num_contacts, 1)
     else:
         pae_min = 0
         plddt_min = 0
 
-    data = {'pdockq':pdockq, 
-            'num_contacts':num_contacts,
+    data = {'num_contacts':num_contacts,
             'plddt':[plddt_min, plddt_avg, plddt_max],
             'pae':[pae_min, pae_avg, pae_max],
             'distance_avg': distance_avg}
@@ -628,6 +706,10 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
                     })
 
             if_stats = calculate_interface_statistics(contacts)
+            if_stats['pdockq'] = 0
+
+            if if_stats['num_contacts'] > 0:
+                if_stats['pdockq'] = round(get_pdockq_elofsson(pdb_filename), 3)
 
             if best_interface_stats is None:
                 best_interface_stats = if_stats
