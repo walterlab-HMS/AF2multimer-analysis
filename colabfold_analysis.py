@@ -127,9 +127,10 @@ def get_filepaths_for_complex(path:str, complex_name:str, pattern:str = '*') -> 
     return sorted(glob.glob(glob_str))
 
 
-def get_pae_values_from_json_file(json_filename) -> list:
+
+def get_data_from_json_file(json_filename) -> dict:
     """
-        Returns a list of string values representing the pAE(predicated Aligned Error) values stored in the JSON output
+        Returns a dictionary of data from a JSON output file including PAE string values representing the pAE(predicated Aligned Error) values, the pTM and iPTM scores
 
         :param json_filename: string representing the JSON filename from which to extract the PAE values
     """ 
@@ -148,9 +149,15 @@ def get_pae_values_from_json_file(json_filename) -> list:
         raise ValueError('pAE file with invalid extension cannot be analyzed. Only valid JSON files can be analyzed.')
 
     #read pae file in as text
-    file_text = scores_file.read()
-    pae_index = file_text.find('"pae":')
-    scores_file.close()
+    try:
+        file_text = scores_file.read()
+        pae_index = file_text.find('"pae":')
+        ptm_index = file_text.find('"ptm":')
+        iptm_index = file_text.find('"iptm":')
+        scores_file.close()
+    except:
+        print("Could not parse json_filename")
+        raise ValueError('Could not parse JSON file')
     
     #Transform string representing 2d array into a 1d array of strings (each string is 1 pAE value). We save time by not unecessarily converting them to numbers before we use them.
     pae_data = file_text[pae_index + 6:file_text.find(']]', pae_index) + 2].replace('[','').replace(']','').split(',')
@@ -159,7 +166,10 @@ def get_pae_values_from_json_file(json_filename) -> list:
         #all valid pAE files consist of an N x N matrice of scores
         raise ValueError('pAE values could not be parsed from files')
     
-    return pae_data
+    ptm = float(file_text[ptm_index + 6:file_text.find(',', ptm_index)]) if ptm_index > 0 else None
+    iptm = float(file_text[iptm_index + 7:].replace('}', '')) if iptm_index > 0 else None
+    return {'pae':pae_data, 'ptm':ptm, 'iptm':iptm}
+
 
 def dist2(v1, v2) -> float:
     """
@@ -427,9 +437,9 @@ def get_contacts_from_structure(pdb_filename:str, max_distance:float = 8, min_pl
     return contacts
 
 
-def get_contacts(pdb_filename:str, pae_filename:str, max_distance:float, min_plddt:float, max_pae:float, pae_mode:str, valid_aas:str = '') -> dict:
+def get_structure_analysis_data(pdb_filename:str, pae_filename:str, max_distance:float, min_plddt:float, max_pae:float, pae_mode:str, valid_aas:str = '') -> dict:
     """
-        Get contacts from a protein structure in PDB format that meet the specified distance and confidence criteria.
+        Get contact data from a protein structure in PDB format that meet the specified distance and confidence criteria along with iptm and ptm values.
 
         :param pdb_filename (str): The path to the PDB file.
         :param pae_filename (str): The path to the predicted Alignment Error (pAE) file.
@@ -451,17 +461,19 @@ def get_contacts(pdb_filename:str, pae_filename:str, max_distance:float, min_pld
 
     #first determine which residues are in physical contact(distance) and have a minimum pLDDT score (bfactor column)
     contacts = get_contacts_from_structure(pdb_filename, max_distance, min_plddt, valid_aas)
+    json_file_data = get_data_from_json_file(pae_filename)
     if len(contacts) < 1:
-        return {}
+        return {'contacts':{}, 'ptm':json_file_data['ptm'], 'iptm':json_file_data['iptm']}
+
     
     filtered_contacts = {}
     
-    pae_data = None
     total_aa_length = 0
+
+    pae_data = json_file_data['pae']
 
     if not ignore_pae:
         #extract PAE data as a list of strings("PAE values") from the PAE file which is a linearized form of a N by N matrix where N is the total number of residues inb the predicted structure 
-        pae_data = get_pae_values_from_json_file(pae_filename)
 
         #need this value for converting between amino acid index and the pAE array index
         total_aa_length = int(math.sqrt(len(pae_data)))
@@ -517,7 +529,7 @@ def get_contacts(pdb_filename:str, pae_filename:str, max_distance:float, min_pld
             'distance':c['distance']
         }
 
-    return filtered_contacts
+    return {'contacts':filtered_contacts, 'ptm':json_file_data['ptm'], 'iptm':json_file_data['iptm']}
 
         
 def calculate_interface_statistics(contacts:dict) -> dict:
@@ -681,11 +693,14 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
 
         #record which interface has the best score (ie the most high confidence contacts so we can report it out later)
         best_interface_stats = None
+        all_iptms = [] 
+        all_ptms = []
 
         for pdb_filename, pae_filename in zip(pdb_filepaths, pae_filepaths):
             
             model_num = get_af_model_num(pdb_filename)
-            contacts = get_contacts(pdb_filename, pae_filename, max_distance, min_plddt, max_pae, pae_mode, valid_aas)
+            structure_analysis_data = get_structure_analysis_data(pdb_filename, pae_filename, max_distance, min_plddt, max_pae, pae_mode, valid_aas)
+            contacts = structure_analysis_data['contacts']
             interface_contacts[model_num] = contacts
 
             for interchain_str, interchain_interfaces in contacts.items():
@@ -707,6 +722,10 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
 
             if_stats = calculate_interface_statistics(contacts)
             if_stats['pdockq'] = 0
+            if_stats['iptm'] = structure_analysis_data['iptm']
+            all_iptms.append(if_stats['iptm'])
+            if_stats['ptm'] = structure_analysis_data['ptm']
+            all_ptms.append(if_stats['ptm'])
 
             if if_stats['num_contacts'] > 0:
                 if_stats['pdockq'] = round(get_pdockq_elofsson(pdb_filename), 3)
@@ -724,6 +743,8 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
                 "complex_name":cname,
                 "model_num":model_num,
                 "pdockq":if_stats['pdockq'],
+                "ptm":if_stats['ptm'],
+                "iptm":if_stats['iptm'],
                 "ncontacts":if_stats['num_contacts'], 
                 "plddt_min":round(if_stats['plddt'][0]),
                 "plddt_avg":round(if_stats['plddt'][1]),
@@ -739,6 +760,13 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
         stats['best_pdockq'] = best_interface_stats['pdockq']
         stats['best_plddt_avg'] = best_interface_stats['plddt'][1]
         stats['best_pae_avg'] = best_interface_stats['pae'][1]
+       
+        valid_iptms = [iptm for iptm in all_iptms if iptm is not None]
+        stats['max_iptm'] = round(max(valid_iptms), 2) if valid_iptms else None
+
+        valid_ptms = [ptm for ptm in all_ptms if ptm is not None]
+        stats['max_ptm'] = round(max(valid_ptms), 2) if valid_iptms else None
+
         summary_stats[cname] = stats
 
         print("Finished analyzing " + cname)
@@ -756,6 +784,8 @@ def analyze_complexes(cpu_index:int, input_folder:str, output_folder:str, comple
                                                     'max_n_models', 
                                                     'num_contacts_with_max_n_models', 
                                                     'num_unique_contacts', 
+                                                    'max_iptm',
+                                                    'max_ptm',
                                                     'best_model_num', 
                                                     'best_pdockq',
                                                     'best_plddt_avg',
@@ -798,8 +828,26 @@ def analyze_folder(data_folder:str, name_filter:str, max_distance:float, plddt_c
         complex_names = list(filter(lambda x: name_filter in x, complex_names))
 
     if len(complex_names) < 1:
-        print("ERROR: No complexes to analyze found. Please ensure all finished complexes/predictions you would like analyzed have a .done.txt file")
-        return None
+        print("No .done.txt files found in the specified folder. Attempting to find complexes via PDB file names instead.")
+        #Try a different strategy to find complexes to analyze
+        # Find all files ending in .pdb or .pdb.?? in the directory
+        pdb_files = glob.glob(os.path.join(data_folder, "*.pdb")) + glob.glob(os.path.join(data_folder, "*.pdb.??"))
+        
+        # Extract unique complex names based on the text before "_unrelaxed"
+        complex_names = set()
+        for pdb_file in pdb_files:
+            filename = os.path.basename(pdb_file)
+            if "_unrelaxed" in filename:
+                complex_name = filename.split("_unrelaxed")[0]
+                complex_names.add(complex_name)
+        
+        complex_names = list(complex_names)
+
+        if len(complex_names) < 1:
+            print("ERROR: No complexes to analyze found. Please ensure all finished complexes/predictions you would like analyzed have a .done.txt file or has PDB files in the format COMPLEX_NAME_unrelaxed*.pdb.")
+            return None
+        
+    
     
     print(f"Found {len(complex_names)} complexes to analyze in folder: {data_folder}")
 
